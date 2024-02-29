@@ -174,3 +174,9 @@ extension MeshResource.Contents {
         self.models = [MeshResource.Model(id: "model", parts: [part])]
     }
 }
+
+extension Float {
+    static func deg2rad(_ number: Float) -> Float {
+        return number * .pi / 180
+    }
+}

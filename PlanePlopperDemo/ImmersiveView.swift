@@ -12,32 +12,31 @@ import SwiftData
 
 struct ImmersiveView: View {
     
+    enum Attachments {
+        case action
+    }
+    
     @State var planePlopper: PlanePlopper
     var dataSource: ModelDataSource
-    
-    @Environment(\.modelContext) var modelContext
-    
+        
     init(planePlopper: PlanePlopper, dataSource: ModelDataSource) {
         self.planePlopper = planePlopper
         planePlopper.dataSource = dataSource
         self.dataSource = dataSource
     }
-
-    func deg2rad(_ number: Float) -> Float {
-        return number * .pi / 180
-    }
     
     var body: some View {
+        
         RealityView { content, attachments in
             
             content.add(planePlopper.utilityEntities.rootEntity)
             
-            if let actionView = attachments.entity(for: "action") {
+            if let actionView = attachments.entity(for: Attachments.action) {
                 planePlopper.utilityEntities.placementLocation.addChild(actionView)
                 
                 //Hover the attachment above the placement cursor, angled toward the user
                 actionView.setPosition([0,0.15,0], relativeTo: planePlopper.utilityEntities.placementLocation)
-                actionView.setOrientation(.init(angle: deg2rad(-25), axis: [1,0,0]), relativeTo: planePlopper.utilityEntities.placementLocation)
+                actionView.setOrientation(.init(angle: .deg2rad(-25), axis: [1,0,0]), relativeTo: planePlopper.utilityEntities.placementLocation)
             }
                 
             Task {
@@ -45,10 +44,9 @@ struct ImmersiveView: View {
             }
             
         } update: { content, attachments in
-            print("Update happened")
             
         } attachments: {
-            Attachment(id: "action") {
+            Attachment(id: Attachments.action) {
                 Button {
                     
                     planePlopper.anchor(dataSource.insert())
@@ -59,21 +57,6 @@ struct ImmersiveView: View {
                 }
             }
         }
-        .task {
-            // Monitor ARKit anchor updates once the user opens the immersive space.
-            //
-            // Tasks attached to a view automatically receive a cancellation
-            // signal when the user dismisses the view. This ensures that
-            // loops that await anchor updates from the ARKit data providers
-            // immediately end.
-            print("awaiting anchor updates")
-            await planePlopper.processWorldAnchorUpdates()
-        }
-        .task {
-            await planePlopper.processDeviceAnchorUpdates()
-        }
-        .task {
-            await planePlopper.processPlaneDetectionUpdates()
-        }
+        .processUpdates(for: planePlopper)
     }
 }

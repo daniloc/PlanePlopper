@@ -316,3 +316,32 @@ Remove old objects before placing new ones.
         }
     }
 }
+
+struct ProcessUpdatesForPlanePlopper: ViewModifier {
+    var planePlopper: PlanePlopper
+
+    func body(content: Content) -> some View {
+        content
+            .task {
+                // Monitor ARKit anchor updates once the user opens the immersive space.
+                //
+                // Tasks attached to a view automatically receive a cancellation
+                // signal when the user dismisses the view. This ensures that
+                // loops that await anchor updates from the ARKit data providers
+                // immediately end.                
+                await planePlopper.processWorldAnchorUpdates()
+            }
+            .task {
+                await planePlopper.processDeviceAnchorUpdates()
+            }
+            .task {
+                await planePlopper.processPlaneDetectionUpdates()
+            }
+    }
+}
+
+extension View {
+    func processUpdates(for planePlopper: PlanePlopper) -> some View {
+        modifier(ProcessUpdatesForPlanePlopper(planePlopper: planePlopper))
+    }
+}

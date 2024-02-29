@@ -39,8 +39,11 @@ class ModelDataSource: PlaneAnchoringDataSource {
     }
     
     func shouldRemoveAnchor(with id: UUID) -> Bool {
-        print("No entity found for \(id)")
-        return modelsMap[id] == nil
+        
+        let remove = modelsMap[id] == nil
+        
+        print("Should remove anchor for \(id)? \(remove)")
+        return remove
     }
     
     @MainActor

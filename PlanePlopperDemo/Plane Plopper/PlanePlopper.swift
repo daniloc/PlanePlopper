@@ -13,22 +13,36 @@ import SwiftUI
 
 /// Implement a data source to interact with your persistence strategy
 protocol PlaneAnchoringDataSource {
-
+    
+    
+    /// Provide a RealityKit entity corresponding to a given WorldAnchor
+    /// - Parameter worldAnchor: A WorldAnchor the user has selected for placing a persisted object
+    /// - Returns: a RealityKit entity to be rendered at the WorldAnchor's position
     func renderContentForAnchor(_ worldAnchor: WorldAnchor) -> Entity?
-    func insertInstance(_ entity: AnchorableEntity, id: UUID)
-    func shouldRemoveEntity(for id: UUID) -> Bool
+    
+    
+    /// Associate a WorldAnchor ID with a given model
+    /// - Parameters:
+    ///   - model: A recently anchored model
+    ///   - id: A UUID corresponding to a WorldAnchor
+    func associate(_ model: AnchorableModel, with anchorID: UUID)
+    
+    
+    /// Determine if a previously set WorldAnchor should be removed
+    /// - Parameter id: A WorldAnchor ID
+    /// - Returns: A boolean to remove or keep the anchor
+    func shouldRemoveAnchor(with id: UUID) -> Bool
     
 }
 
-/// Persisted data models should conform to AnchorableEntity and store worldAnchorID's between sessions/
-protocol AnchorableEntity {
+/// Persisted data models should conform to AnchorableEntity and store their WorldAnchor ID's between sessions
+protocol AnchorableModel {
     
-    var worldAnchorID: UUID? { get set }
+    /// RealityKit entity to be displayed at the model's selected WorldAnchor
     var renderContent: RealityKit.Entity? { get }
-
+    
     var debugDescription: String { get }
 }
-
 
 @Observable
 class PlanePlopper {
@@ -40,7 +54,7 @@ class PlanePlopper {
         let deviceLocation: Entity = .init()
         let raycastOrigin: Entity = .init()
         let placementLocation: Entity = .init()
-                
+        
         init() {
             rootEntity.addChild(placementLocation)
             deviceLocation.addChild(raycastOrigin)
@@ -60,7 +74,7 @@ class PlanePlopper {
     private var arInterface: ARKitInterface
     
     private var worldAnchors: [UUID:WorldAnchor] = [:]
-
+    
     
     var utilityEntities: UtilityEntities
     
@@ -93,7 +107,7 @@ class PlanePlopper {
             await utilityEntities.placementLocation.addChild(cursor)
         }
     }
-
+    
     
     @MainActor
     func runARKitSession() async {
@@ -118,7 +132,7 @@ class PlanePlopper {
         guard worldTracking.state == .running else { return }
         
         let deviceAnchor = worldTracking.queryDeviceAnchor(atTimestamp: CACurrentMediaTime())
-
+        
         deviceAnchorPresent = deviceAnchor != nil
         planeAnchorsPresent = !planeAnchorHandler.planeAnchors.isEmpty
         
@@ -136,7 +150,7 @@ class PlanePlopper {
         
         // Cast the ray from the device origin.
         let origin: SIMD3<Float> = utilityEntities.raycastOrigin.transformMatrix(relativeTo: nil).translation
-    
+        
         // Cast the ray along the negative z-axis of the device anchor, but with a slight downward angle.
         // (The downward angle is configurable using the `raycastOrigin` orientation.)
         let direction: SIMD3<Float> =  -utilityEntities.raycastOrigin.transformMatrix(relativeTo: nil).zAxis
@@ -147,10 +161,10 @@ class PlanePlopper {
         
         // Only raycast against horizontal planes.
         let collisionMask = PlaneAnchor.allPlanesCollisionGroup
-
+        
         var originFromPointOnPlaneTransform: float4x4? = nil
         if let result = utilityEntities.rootEntity.scene?.raycast(origin: origin, direction: direction, length: maxDistance, query: .nearest, mask: collisionMask)
-                                                  .first, result.distance > minDistance {
+            .first, result.distance > minDistance {
             if result.entity.components[CollisionComponent.self]?.filter.group != PlaneAnchor.verticalCollisionGroup {
                 // If the raycast hit a horizontal plane, use that result with a small, fixed offset.
                 originFromPointOnPlaneTransform = originFromUprightDeviceAnchorTransform
@@ -171,13 +185,13 @@ class PlanePlopper {
     }
     
     @MainActor
-    func placeEntity(_ entity: AnchorableEntity) {
-
-        entity.renderContent?.position = utilityEntities.placementLocation.position
-        entity.renderContent?.orientation = utilityEntities.placementLocation.orientation
+    func anchor(_ model: AnchorableModel) {
+        
+        model.renderContent?.position = utilityEntities.placementLocation.position
+        model.renderContent?.orientation = utilityEntities.placementLocation.orientation
         
         Task {
-            await attachEntityToWorldAnchor(entity)
+            await attachModelAtCursorPosition(model)
         }
     }
     
@@ -226,7 +240,7 @@ class PlanePlopper {
                 contentToRender.isEnabled = anchor.isTracked
                 utilityEntities.rootEntity.addChild(contentToRender)
             } else {
-                if dataSource?.shouldRemoveEntity(for: anchor.id) == true {
+                if dataSource?.shouldRemoveAnchor(with: anchor.id) == true {
                     Task {
                         // Immediately delete world anchors for which no placed object is known.
                         print("No object is attached to anchor \(anchor.id) - it can be deleted.")
@@ -238,30 +252,38 @@ class PlanePlopper {
         case .updated:
             // Keep the position of placed objects in sync with their corresponding
             // world anchor, and hide the object if the anchor isn’t tracked.
-            if let object = dataSource?.renderContentForAnchor(anchor) {
-                object.position = anchor.originFromAnchorTransform.translation
-                object.orientation = anchor.originFromAnchorTransform.rotation
-                object.isEnabled = anchor.isTracked
-                utilityEntities.rootEntity.addChild(object)
+            
+            if let renderContent = dataSource?.renderContentForAnchor(anchor) {
+                renderContent.position = anchor.originFromAnchorTransform.translation
+                renderContent.orientation = anchor.originFromAnchorTransform.rotation
+                renderContent.isEnabled = anchor.isTracked
+                
+                
+                if anchor.isTracked {
+                    utilityEntities.rootEntity.addChild(renderContent)
+                } else {
+                    renderContent.removeFromParent()
+                }
             }
         case .removed:
             // Remove the placed object if the corresponding world anchor was removed.
             dataSource?.renderContentForAnchor(anchor)?.removeFromParent()
         }
-    }   
+    }
     
     @MainActor
-    func attachEntityToWorldAnchor(_ entity: AnchorableEntity) async -> WorldAnchor? {
+    func attachModelAtCursorPosition(_ model: AnchorableModel) async -> WorldAnchor? {
         // First, create a new world anchor and try to add it to the world tracking provider.
-        guard let renderContent = entity.renderContent else {
+        guard let renderContent = model.renderContent else {
             print("no render content")
             return nil
         }
         let anchor = WorldAnchor(originFromAnchorTransform: renderContent.transformMatrix(relativeTo: nil))
         
         do {
-            dataSource?.insertInstance(entity, id: anchor.id)
             try await worldTracking.addAnchor(anchor)
+            dataSource?.associate(model, with: anchor.id)
+            
         } catch {
             // Adding world anchors can fail, such as when you reach the limit
             // for total world anchors per app. Keep track
@@ -271,7 +293,7 @@ class PlanePlopper {
             if let worldTrackingError = error as? WorldTrackingProvider.Error, worldTrackingError.code == .worldAnchorLimitReached {
                 print(
 """
-Unable to place object "\(entity.debugDescription)". You’ve placed the maximum number of objects.
+Unable to place object "\(model.debugDescription)". You’ve placed the maximum number of objects.
 Remove old objects before placing new ones.
 """
                 )
@@ -279,7 +301,7 @@ Remove old objects before placing new ones.
                 print("Failed to add world anchor \(anchor.id) with error: \(error).")
             }
             
-            entity.renderContent?.removeFromParent()
+            model.renderContent?.removeFromParent()
             return nil
         }
         

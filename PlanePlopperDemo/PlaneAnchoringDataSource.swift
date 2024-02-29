@@ -38,7 +38,7 @@ class ModelDataSource: PlaneAnchoringDataSource {
         }
     }
     
-    func shouldRemoveEntity(for id: UUID) -> Bool {
+    func shouldRemoveAnchor(with id: UUID) -> Bool {
         print("No entity found for \(id)")
         return modelsMap[id] == nil
     }
@@ -53,10 +53,10 @@ class ModelDataSource: PlaneAnchoringDataSource {
     }
     
     @MainActor
-    func insertInstance(_ entity: AnchorableEntity, id: UUID) {
-        if let entity = entity as? PersistedModel {
-            modelsMap[id] = entity
-            entity.worldAnchorID = id
+    func associate(_ model: AnchorableModel, with anchorID: UUID) {
+        if let model = model as? PersistedModel {
+            modelsMap[anchorID] = model
+            model.worldAnchorID = anchorID
             save()
         }
      }

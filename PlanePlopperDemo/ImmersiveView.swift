@@ -51,8 +51,7 @@ struct ImmersiveView: View {
             Attachment(id: "action") {
                 Button {
                     
-                    
-                    planePlopper.placeEntity(dataSource.insert())
+                    planePlopper.anchor(dataSource.insert())
 
                     
                 } label: {

@@ -10,7 +10,7 @@ import SwiftData
 import RealityKit
 
 @Model
-class PersistedModel: AnchorableEntity {
+class PersistedModel: AnchorableModel {
         
     var timestamp: Date
     var worldAnchorID: UUID?

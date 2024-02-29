@@ -2,7 +2,7 @@
 
 https://github.com/daniloc/PlanePlopper/assets/213358/50be534d-fbde-4709-8b69-1038a4d5bc96
 
-The primary way that Vision Pro augments reality is by detecting planes in the real world and allowing developers to attach objects to them.
+The primary way that visionOS augments reality is by detecting planes in the real world and allowing developers to attach objects to them.
 
 PlanePlopper makes it fast and easy to get your project providing immersive RealityKit scenes where users can place objects on (horizonal) planes of their choosing.
 

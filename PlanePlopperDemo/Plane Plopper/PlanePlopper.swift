@@ -85,6 +85,8 @@ class PlanePlopper {
     var deviceAnchorPresent = false
     var planeAnchorsPresent = false
     
+    var ploppedEntities: [UUID:Entity] = [:]
+    
     static private let placedObjectsOffsetOnPlanes: Float = 0.01
     
     /// When the user is gazing at a valid plane target, insert the placement cursor
@@ -130,38 +132,38 @@ class PlanePlopper {
         }
     }
     
+    // Assuming a structure to maintain the baseline positions of entities
+    var baselinePositions: [UUID: simd_float3] = [:]
+
     func adjustOffset(with anchor: DeviceAnchor) {
+        
+        //TODO: prevent the objects flying away
+        
+        let toDeviceTransform = anchor.originFromAnchorTransform.inverse
+        let devicePosition = toDeviceTransform.translation
+        let deviceRotation = toDeviceTransform.upper3x3
 
-        // Obtain the camera's current position
-        let devicePosition = anchor.originFromAnchorTransform.inverse.translation
+        // Assuming zOffset, yOffset, zOffset are defined elsewhere
+        let fixedOffset = simd_float3(xOffset, yOffset, zOffset)
 
-        // Extract the forward direction from the camera's transform
-        let forward = simd_make_float3(anchor.originFromAnchorTransform.inverse.columns.2)
+        ploppedEntities.forEach { (id, entity) in
+            // Determine the baseline position if not already set
+            if baselinePositions[id] == nil {
+                baselinePositions[id] = entity.transform.translation
+            }
 
-        // Calculate the magnitude (length) of the forward vector
-        let forwardMagnitude = sqrt(forward.x * forward.x + forward.y * forward.y + forward.z * forward.z)
+            guard let baselinePosition = baselinePositions[id] else { return }
 
-        // Normalize the forward vector
-        let forwardNormalized = forward / forwardMagnitude
+            let adjustedPosition = devicePosition + fixedOffset
 
-        // Assuming xOffset, yOffset, zOffset are meant to specify the offset distance directly along the camera's forward vector
-        let offsetMagnitude = sqrt(xOffset * xOffset + yOffset * yOffset + zOffset * zOffset)
-
-        // Apply the offset in the direction of the camera's forward vector
-        let fixedOffsetDirection = forwardNormalized * offsetMagnitude
-
-        // Calculate the new position for the entity, applying the offset in the direction the camera is facing
-        let newEntityPosition = devicePosition + fixedOffsetDirection
-
-        // Update your entity's position
-        var newTransform = utilityEntities.rootEntity.transform
-        newTransform.translation = newEntityPosition
-        utilityEntities.rootEntity.transform = newTransform
+            // Update the entity's transform
+            var newTransform = entity.transform
+            newTransform.translation = adjustedPosition
+            entity.transform = newTransform
+        }
     }
 
 
-
-    
     @MainActor
     private func queryAndProcessLatestDeviceAnchor() async {
         // Device anchors are only available when the provider is running.
@@ -273,6 +275,7 @@ class PlanePlopper {
             // ARKit surfaces all of the world anchors associated with this app
             // when the world tracking provider starts.
             if let contentToRender = dataSource?.renderContentForAnchor(anchor) {
+                ploppedEntities[anchor.id] = contentToRender
                 contentToRender.position = anchor.originFromAnchorTransform.translation
                 contentToRender.orientation = anchor.originFromAnchorTransform.rotation
                 contentToRender.isEnabled = anchor.isTracked
@@ -292,6 +295,7 @@ class PlanePlopper {
             // world anchor, and hide the object if the anchor isn’t tracked.
             
             if let renderContent = dataSource?.renderContentForAnchor(anchor) {
+                ploppedEntities[anchor.id] = renderContent
                 renderContent.position = anchor.originFromAnchorTransform.translation
                 renderContent.orientation = anchor.originFromAnchorTransform.rotation
                 renderContent.isEnabled = anchor.isTracked

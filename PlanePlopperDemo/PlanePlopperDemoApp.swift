@@ -13,6 +13,7 @@ struct PhasecrafterApp: App {
     
     let modelContainer: ModelContainer
     let dataSource: ModelDataSource
+    let plopper = PlanePlopper()
     
     init() {
         do {
@@ -25,11 +26,11 @@ struct PhasecrafterApp: App {
     
     var body: some Scene {
         WindowGroup {
-            ContentView(dataSource: dataSource)
+            ContentView(dataSource: dataSource, planePlopper: plopper)
         }
 
         ImmersiveSpace(id: "ImmersiveSpace") {
-            ImmersiveView(planePlopper: PlanePlopper(), dataSource: dataSource)
+            ImmersiveView(planePlopper: plopper, dataSource: dataSource)
         }
 
     }

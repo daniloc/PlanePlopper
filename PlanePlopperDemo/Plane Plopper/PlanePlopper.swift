@@ -65,6 +65,10 @@ class PlanePlopper {
         }
     }
     
+    var xOffset: Float = 0
+    var yOffset: Float = 0
+    var zOffset: Float = 0
+    
     var dataSource: PlaneAnchoringDataSource?
     
     private let worldTracking = WorldTrackingProvider()
@@ -126,6 +130,38 @@ class PlanePlopper {
         }
     }
     
+    func adjustOffset(with anchor: DeviceAnchor) {
+
+        // Obtain the camera's current position
+        let devicePosition = anchor.originFromAnchorTransform.inverse.translation
+
+        // Extract the forward direction from the camera's transform
+        let forward = simd_make_float3(anchor.originFromAnchorTransform.inverse.columns.2)
+
+        // Calculate the magnitude (length) of the forward vector
+        let forwardMagnitude = sqrt(forward.x * forward.x + forward.y * forward.y + forward.z * forward.z)
+
+        // Normalize the forward vector
+        let forwardNormalized = forward / forwardMagnitude
+
+        // Assuming xOffset, yOffset, zOffset are meant to specify the offset distance directly along the camera's forward vector
+        let offsetMagnitude = sqrt(xOffset * xOffset + yOffset * yOffset + zOffset * zOffset)
+
+        // Apply the offset in the direction of the camera's forward vector
+        let fixedOffsetDirection = forwardNormalized * offsetMagnitude
+
+        // Calculate the new position for the entity, applying the offset in the direction the camera is facing
+        let newEntityPosition = devicePosition + fixedOffsetDirection
+
+        // Update your entity's position
+        var newTransform = utilityEntities.rootEntity.transform
+        newTransform.translation = newEntityPosition
+        utilityEntities.rootEntity.transform = newTransform
+    }
+
+
+
+    
     @MainActor
     private func queryAndProcessLatestDeviceAnchor() async {
         // Device anchors are only available when the provider is running.
@@ -137,6 +173,8 @@ class PlanePlopper {
         planeAnchorsPresent = !planeAnchorHandler.planeAnchors.isEmpty
         
         guard let deviceAnchor, deviceAnchor.isTracked else { return }
+        
+        adjustOffset(with: deviceAnchor)
         
         await updatePlacementLocation(deviceAnchor)
     }
@@ -343,5 +381,11 @@ struct ProcessUpdatesForPlanePlopper: ViewModifier {
 extension View {
     func processUpdates(for planePlopper: PlanePlopper) -> some View {
         modifier(ProcessUpdatesForPlanePlopper(planePlopper: planePlopper))
+    }
+}
+
+extension simd_float4x4 {
+    var upper3x3 : simd_float3x3 {
+        return simd_float3x3(columns.0.xyz, columns.1.xyz, columns.2.xyz)
     }
 }

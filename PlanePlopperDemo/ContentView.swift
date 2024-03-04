@@ -19,18 +19,41 @@ struct ContentView: View {
     @State private var immersiveSpaceIsShown = false
     
     var dataSource: ModelDataSource
-
+    @State var planePlopper: PlanePlopper
+    
     @Environment(\.openImmersiveSpace) var openImmersiveSpace
     @Environment(\.dismissImmersiveSpace) var dismissImmersiveSpace
     
 
+    func slider(value: Binding<Float>, label: String) -> some View {
+        
+        HStack {
+            
+            VStack {
+                Text("\(label) offset: ")
+                Text(String(format: "%.2f", value.wrappedValue))
+            }
+            .padding()
+            
+            Slider(value: value, in: -5...5, step: 0.25) {
+                Text("\(label) offset")
+            } minimumValueLabel: {
+                Text("-5")
+            } maximumValueLabel: {
+                Text("5")
+            }
+            
+        }
+        .padding()
+    }
+    
     var body: some View {
         VStack {
-            Model3D(named: "Scene", bundle: realityKitContentBundle)
-                .padding(.bottom, 50)
-
-            Text("Hello, world!")
-
+            
+            slider(value: $planePlopper.xOffset, label: "x")
+            slider(value: $planePlopper.yOffset, label: "y")
+            slider(value: $planePlopper.zOffset, label: "z")
+            
             Toggle("Show Immersive Space", isOn: $showImmersiveSpace)
                 .toggleStyle(.button)
                 .padding(.top, 50)
